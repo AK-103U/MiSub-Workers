@@ -1,5 +1,7 @@
 import { createExternalError, getExternalApiSettings } from './external-api-utils.js';
 
+import { getAdminPassword } from './utils.js';
+
 export async function authenticateExternalApiRequest(request, env, storageAdapter = null) {
     const settings = await getExternalApiSettings(env, storageAdapter);
     if (settings.enabled !== true) {
@@ -25,6 +27,13 @@ export async function authenticateExternalApiRequest(request, env, storageAdapte
         return {
             ok: false,
             response: createExternalError('unauthorized', 'Invalid or missing bearer token', 401),
+        };
+    }
+
+    if (!(await getAdminPassword(env))) {
+        return {
+            ok: false,
+            response: createExternalError('forbidden', 'Admin access is not configured', 403),
         };
     }
 

@@ -1,4 +1,5 @@
 import { StorageFactory, STORAGE_TYPES } from '../storage-adapter.js';
+import { getCookieSecret } from '../modules/utils.js';
 
 const DEFAULT_EXTERNAL_NODES_TTL_SECONDS = 120;
 const DEFAULT_MAX_INLINE_URL_LENGTH = 6000;
@@ -278,8 +279,8 @@ export async function verifyExternalNodesToken(token, secret) {
     return payload;
 }
 
-export function resolveExternalNodesCallbackSecret(env = {}) {
-    return env?.CALLBACK_TOKEN_SECRET || env?.COOKIE_SECRET || '';
+export async function resolveExternalNodesCallbackSecret(env = {}) {
+    return env.CALLBACK_TOKEN_SECRET || env.COOKIE_SECRET || getCookieSecret(env);
 }
 
 export function buildExternalNodesCallbackUrl(requestUrl, token, { encoding } = {}) {
@@ -299,7 +300,7 @@ export async function prepareExternalNodesCallback({
     ttlSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS,
     encoding,
 } = {}) {
-    const secret = resolveExternalNodesCallbackSecret(env);
+    const secret = await resolveExternalNodesCallbackSecret(env);
     const stored = await putExternalNodes({ env, profileId, nodesText, ttlSeconds });
     const token = await createExternalNodesToken({
         profileId,
@@ -323,7 +324,8 @@ export async function handleExternalNodesCallbackRequest(request, env = {}) {
 
     let payload;
     try {
-        payload = await verifyExternalNodesToken(token, resolveExternalNodesCallbackSecret(env));
+        const secret = await resolveExternalNodesCallbackSecret(env);
+        payload = await verifyExternalNodesToken(token, secret);
     } catch (err) {
         const message = err?.message || 'Invalid callback token';
         const status = /expired/i.test(message) ? 410 : 403;

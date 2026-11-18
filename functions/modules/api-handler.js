@@ -845,20 +845,25 @@ export async function handlePublicConfig(request, env) {
             // Keep the safe default when the browser sends an invalid/missing path.
         }
 
-        return createJsonResponse({
-            enablePublicPage: mergedSettings.enablePublicPage,
-            isLoginPath,
-            customPage: {
-                enabled: mergedSettings.customPage?.enabled || false,
-                useDefaultLayout: mergedSettings.customPage?.useDefaultLayout !== false,
-                allowExternalStylesheets:
-                    mergedSettings.customPage?.allowExternalStylesheets === true,
-                allowScripts: mergedSettings.customPage?.allowScripts === true,
-                hideBranding: mergedSettings.customPage?.hideBranding === true,
-                hideHeader: mergedSettings.customPage?.hideHeader === true,
-                hideFooter: mergedSettings.customPage?.hideFooter === true,
+        return createJsonResponse(
+            {
+                enablePublicPage: mergedSettings.enablePublicPage,
+                isLoginPath,
+                adminSetupRequired: !(await getAdminPassword(env)),
+                customPage: {
+                    enabled: mergedSettings.customPage?.enabled || false,
+                    useDefaultLayout: mergedSettings.customPage?.useDefaultLayout !== false,
+                    allowExternalStylesheets:
+                        mergedSettings.customPage?.allowExternalStylesheets === true,
+                    allowScripts: mergedSettings.customPage?.allowScripts === true,
+                    hideBranding: mergedSettings.customPage?.hideBranding === true,
+                    hideHeader: mergedSettings.customPage?.hideHeader === true,
+                    hideFooter: mergedSettings.customPage?.hideFooter === true,
+                },
             },
-        });
+            200,
+            { 'Cache-Control': 'no-store' }
+        );
     } catch (e) {
         console.error('[API Error /public/config]', e);
         return createErrorResponse('获取公开配置失败', 500);

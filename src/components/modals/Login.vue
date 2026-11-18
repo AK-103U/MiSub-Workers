@@ -1,9 +1,13 @@
 <script setup>
-    import { ref } from 'vue';
+    import { computed, ref } from 'vue';
+    import { useSessionStore } from '../../stores/session.js';
     import { useI18n } from '../../i18n/index.js';
     import Button from '../ui/Button.vue';
 
     const { t } = useI18n();
+
+    const session = useSessionStore();
+    const setupRequired = computed(() => session.publicConfig?.adminSetupRequired === true);
 
     const emit = defineEmits(['success']);
     const password = ref('');
@@ -49,7 +53,7 @@
                             v-if="!logoFailed"
                             width="96"
                             height="96"
-                            src="/logo.png"
+                            :src="'/logo.png'"
                             alt="MiSub"
                             class="drop-shadow-2xl"
                             @error="logoFailed = true"
@@ -78,15 +82,21 @@
                     <h1
                         class="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight"
                     >
-                        {{ t('login.welcomeBack') }}
+                        {{ setupRequired ? t('login.setupTitle') : t('login.welcomeBack') }}
                     </h1>
                     <p class="text-base text-gray-500 dark:text-gray-400 font-medium">
-                        {{ t('login.verifyIdentity') }}
+                        {{
+                            setupRequired ? t('login.setupInstructions') : t('login.verifyIdentity')
+                        }}
                     </p>
                 </div>
             </div>
 
-            <form @submit.prevent="submitLogin" class="space-y-8 relative z-10 w-full mb-4">
+            <form
+                v-if="!setupRequired"
+                @submit.prevent="submitLogin"
+                class="space-y-8 relative z-10 w-full mb-4"
+            >
                 <div class="relative w-full group" :class="{ 'animate-shake': error }">
                     <div
                         class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors"

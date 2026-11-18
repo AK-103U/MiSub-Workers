@@ -1633,6 +1633,8 @@ export const messages = {
         },
         login: {
             passwordPlaceholder: '管理员密码 / 访问凭证',
+            setupTitle: '管理后台尚未启用',
+            setupInstructions: '请在 Cloudflare 项目的「设置 → 变量和机密」中添加 ADMIN_PASSWORD（类型选 Secret），部署后刷新此页。',
             welcomeBack: '欢迎回来',
             verifyIdentity: '请验证您的管理员身份',
             passwordRequired: '请输入密码',
@@ -3573,6 +3575,8 @@ export const messages = {
         },
         login: {
             passwordPlaceholder: 'Admin password / access token',
+            setupTitle: 'Admin access is not configured',
+            setupInstructions: 'In your Cloudflare project, open Settings → Variables and Secrets and add ADMIN_PASSWORD as a Secret. Deploy the change, then refresh this page.',
             welcomeBack: 'Welcome back',
             verifyIdentity: 'Verify your administrator identity',
             passwordRequired: 'Please enter your password',

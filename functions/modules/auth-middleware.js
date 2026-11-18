@@ -7,20 +7,13 @@ import { COOKIE_NAME, SESSION_DURATION, SESSION_RENEW_THRESHOLD } from './config
 import {
     getCookieSecret,
     getAdminPassword,
+    normalizePassword,
     getAuthDebugInfo,
     JSON_BODY_LIMITS,
     RequestBodyTooLargeError,
     readJsonWithLimit,
 } from './utils.js';
 import { StorageFactory } from '../storage-adapter.js';
-
-function normalizeSecret(value) {
-    return String(value ?? '')
-        .replace(/\uFEFF/g, '')
-        .replace(/[\u200B-\u200D]/g, '')
-        .trim()
-        .replace(/^['"]|['"]$/g, '');
-}
 
 function buildRequestMeta(request, env) {
     return {
@@ -35,11 +28,6 @@ function buildRequestMeta(request, env) {
         hasKv: !!StorageFactory.resolveKV(env),
         hasD1: !!env?.MISUB_DB,
     };
-}
-
-async function isUsingDefaultAdminPassword(env) {
-    const debugInfo = await getAuthDebugInfo(env);
-    return debugInfo?.adminPassword?.isDefaultFallback === true;
 }
 
 /**
@@ -136,12 +124,6 @@ export async function getAuthSessionDiagnostic(request, env) {
         shouldRenew: false,
     };
 
-    const secret = await getCookieSecret(env);
-    if (!secret) {
-        result.reason = 'no_secret';
-        return result;
-    }
-
     const cookieHeader = request.headers.get('Cookie') || '';
     result.cookieHeaderPresent = cookieHeader.length > 0;
 
@@ -180,6 +162,7 @@ export async function getAuthSessionDiagnostic(request, env) {
         return result;
     }
 
+    const secret = await getCookieSecret(env);
     const verifiedData = await verifySignedToken(secret, token);
     if (!verifiedData) {
         result.reason = 'invalid_signature_or_secret';
@@ -202,6 +185,11 @@ export async function getAuthSessionDiagnostic(request, env) {
     result.verify.sessionAgeMs = sessionAgeMs;
     if (isExpired) {
         result.reason = 'expired';
+        return result;
+    }
+
+    if (!(await getAdminPassword(env))) {
+        result.reason = 'admin_password_unconfigured';
         return result;
     }
 
@@ -273,8 +261,12 @@ export async function getLoginPasswordDiagnostic(request, env) {
         return result;
     }
 
-    const inputPassword = normalizeSecret(payload?.password);
-    const currentPassword = normalizeSecret(await getAdminPassword(env));
+    const inputPassword = normalizePassword(payload?.password);
+    const currentPassword = await getAdminPassword(env);
+    if (!currentPassword) {
+        result.reason = 'admin_password_unconfigured';
+        return result;
+    }
 
     result.input.provided = typeof payload?.password === 'string';
     result.input.normalizedLength = inputPassword.length;
@@ -339,8 +331,20 @@ export async function handleLogin(request, env) {
 
     try {
         const { password } = payload || {};
-        const inputPassword = normalizeSecret(password);
-        const currentPassword = normalizeSecret(await getAdminPassword(env));
+        const inputPassword = normalizePassword(password);
+        const currentPassword = await getAdminPassword(env);
+        if (!currentPassword) {
+            return new Response(
+                JSON.stringify({
+                    code: 'ADMIN_PASSWORD_NOT_CONFIGURED',
+                    error: '管理后台尚未启用，请先配置 ADMIN_PASSWORD。',
+                }),
+                {
+                    status: 503,
+                    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+                }
+            );
+        }
         const isPasswordMatched = inputPassword === currentPassword;
 
         if (isPasswordMatched) {
@@ -349,7 +353,7 @@ export async function handleLogin(request, env) {
             const isSecure = request.url.startsWith('https');
             const cookieString = `${COOKIE_NAME}=${token}; Path=/; HttpOnly; ${isSecure ? 'Secure;' : ''} SameSite=Lax; Max-Age=${SESSION_DURATION / 1000}`;
             const responseBody = { success: true };
-            if (await isUsingDefaultAdminPassword(env)) {
+            if (currentPassword === 'admin') {
                 responseBody.securityWarning = {
                     type: 'default_admin_password',
                     shouldChangePassword: true,

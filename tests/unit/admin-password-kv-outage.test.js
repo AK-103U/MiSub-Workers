@@ -69,7 +69,7 @@ describe('admin password fails closed when KV is unavailable', () => {
         await expect(kv.get('SYSTEM_ADMIN_PASSWORD')).resolves.toBeNull();
     });
 
-    it('still uses the default password when the KV key is genuinely absent', async () => {
-        await expect(getAdminPassword({ MISUB_KV: createKv() })).resolves.toBe('admin');
+    it('has no login password when the KV key is absent', async () => {
+        await expect(getAdminPassword({ MISUB_KV: createKv() })).resolves.toBeNull();
     });
 });

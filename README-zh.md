@@ -172,7 +172,19 @@
 - Cloudflare 账号
 - GitHub 账号
 
-### 一键部署
+### 一键部署到 Cloudflare Workers
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/AK-103U/MiSub-Workers)
+
+1. 点击按钮，连接 Git 账号，选择仓库名和 Worker 名称，无需手动 Fork。
+2. 首次部署无需填写密钥。保留自动识别的构建命令 `npm run build` 和部署命令 `npm run deploy`。
+3. 部署完成后，访问 Worker 域名的 `/login`。要启用后台，在 Worker「设置 → 变量和机密」中添加 `ADMIN_PASSWORD`（类型选 Secret），部署更改后刷新登录页。前端与 API 使用同一域名，`MISUB_KV` 由 Cloudflare 自动创建和绑定，无需配置 D1。
+
+按钮会创建新部署，不会迁移原 Pages 数据。若需沿用已有 KV，可在 CLI 部署前将该命名空间的 `id` 填入 `wrangler.jsonc` 的 `MISUB_KV` 绑定。需要 Worker 原生定时刷新时，可在该文件配置 `triggers.crons`，默认不启用。
+
+本地验证：运行 `npm ci`、`npm run build` 和 `npm run dev:worker`。开发密钥可参照 `.dev.vars.sample` 填入 `.dev.vars`；本地 KV 不会修改线上数据。
+
+### 手动部署到 Cloudflare Pages
 
 1. **Fork 本仓库**到你的 GitHub 账号
 2. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
@@ -190,7 +202,7 @@
 
 ### 1. 绑定 KV 命名空间 (必需)
 
-部署完成后,进入项目设置:
+使用 Workers 一键部署时可跳过本节。手动部署 Pages 后，进入项目设置：
 
 1. `设置` → `函数` → `KV 命名空间绑定`
 2. 点击 `添加绑定`
@@ -204,7 +216,7 @@
 wrangler d1 create misub
 ```
 
-**绑定数据库:**
+**绑定数据库**（Workers 在 `wrangler.jsonc` 的 `d1_databases` 中声明 `MISUB_DB`；Pages 如下）：
 1. `设置` → `函数` → `D1 数据库绑定`
 2. 点击 `添加绑定`
 3. **变量名称**: `MISUB_DB`
@@ -227,7 +239,7 @@ wrangler d1 execute misub --file=schema.sql --remote
 
 | 变量名 | 说明 | 示例 |
 |--------|------|------|
-| `ADMIN_PASSWORD` | 管理员登录密码 | `your_secure_password` (未设置则默认为 `admin`) |
+| `ADMIN_PASSWORD` | 管理员登录密码 | `your_secure_password` （未配置且 KV 无已有密码时，后台不开放） |
 | `COOKIE_SECRET` | Cookie 加密密钥 | `64位随机字符串` (推荐留空，系统自动生成) |
 
 **可选（按需设置）：**
@@ -258,8 +270,7 @@ wrangler d1 execute misub --file=schema.sql --remote
 1. 部署完成后，公开页面默认 **不开启**（访问域名会显示伪装页）。
 2. 请直接访问 `您的域名/login` 进入登录页面。
 3. 输入设置的 `ADMIN_PASSWORD` 即可进入管理后台。
-    - **注意**：如果未设置 `ADMIN_PASSWORD`，默认密码为 **`admin`**。
-    - **首次登录**：使用默认密码登录后，系统会提示您立即在「设置」->「基础设置」中修改密码。
+    - 已有 KV 密码继续有效；没有配置密码时，登录页只显示配置提示，不提供网页设置首个密码的入口。
 
 ### 添加订阅
 

@@ -121,7 +121,7 @@ describe('security hardening', () => {
         expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it('warns after logging in with the default admin password but still allows login', async () => {
+    it('rejects a default-password login on an unconfigured installation', async () => {
         const env = { MISUB_KV: createKv(), COOKIE_SECRET: 'stable-cookie-secret' };
         const response = await handleLogin(
             new Request('https://example.com/api/login', {
@@ -133,16 +133,17 @@ describe('security hardening', () => {
         );
         const body = await response.json();
 
-        expect(response.status).toBe(200);
-        expect(body.success).toBe(true);
-        expect(body.securityWarning).toMatchObject({
-            type: 'default_admin_password',
-            shouldChangePassword: true,
-        });
+        expect(response.status).toBe(503);
+        expect(response.headers.has('Set-Cookie')).toBe(false);
+        expect(body.code).toBe('ADMIN_PASSWORD_NOT_CONFIGURED');
     });
 
     it('keeps browser login sessions valid for thirty days', async () => {
-        const env = { MISUB_KV: createKv(), COOKIE_SECRET: 'stable-cookie-secret' };
+        const env = {
+            MISUB_KV: createKv(),
+            COOKIE_SECRET: 'stable-cookie-secret',
+            ADMIN_PASSWORD: 'configured-password',
+        };
         const issuedAt = Date.now() - (29 * 24 * 60 * 60 * 1000 + 23 * 60 * 60 * 1000);
         const token = await createSignedToken(env.COOKIE_SECRET, String(issuedAt));
         const diagnostic = await getAuthSessionDiagnostic(
@@ -160,7 +161,11 @@ describe('security hardening', () => {
     });
 
     it('marks browser login sessions expired after thirty days', async () => {
-        const env = { MISUB_KV: createKv(), COOKIE_SECRET: 'stable-cookie-secret' };
+        const env = {
+            MISUB_KV: createKv(),
+            COOKIE_SECRET: 'stable-cookie-secret',
+            ADMIN_PASSWORD: 'configured-password',
+        };
         const issuedAt = Date.now() - (30 * 24 * 60 * 60 * 1000 + 1000);
         const token = await createSignedToken(env.COOKIE_SECRET, String(issuedAt));
         const diagnostic = await getAuthSessionDiagnostic(
@@ -177,7 +182,11 @@ describe('security hardening', () => {
     });
 
     it('marks sessions for renewal after seven days without renewing earlier sessions', async () => {
-        const env = { MISUB_KV: createKv(), COOKIE_SECRET: 'stable-cookie-secret' };
+        const env = {
+            MISUB_KV: createKv(),
+            COOKIE_SECRET: 'stable-cookie-secret',
+            ADMIN_PASSWORD: 'configured-password',
+        };
         const recentToken = await createSignedToken(
             env.COOKIE_SECRET,
             String(Date.now() - SESSION_RENEW_THRESHOLD + 1000)
@@ -211,7 +220,11 @@ describe('security hardening', () => {
     });
 
     it('renews mature sessions with a fresh thirty-day cookie', async () => {
-        const env = { MISUB_KV: createKv(), COOKIE_SECRET: 'stable-cookie-secret' };
+        const env = {
+            MISUB_KV: createKv(),
+            COOKIE_SECRET: 'stable-cookie-secret',
+            ADMIN_PASSWORD: 'configured-password',
+        };
         const issuedAt = Date.now() - SESSION_RENEW_THRESHOLD - 1000;
         const token = await createSignedToken(env.COOKIE_SECRET, String(issuedAt));
         const request = {
@@ -236,7 +249,11 @@ describe('security hardening', () => {
     });
 
     it('does not renew sessions before the threshold or after expiry', async () => {
-        const env = { MISUB_KV: createKv(), COOKIE_SECRET: 'stable-cookie-secret' };
+        const env = {
+            MISUB_KV: createKv(),
+            COOKIE_SECRET: 'stable-cookie-secret',
+            ADMIN_PASSWORD: 'configured-password',
+        };
         const recentToken = await createSignedToken(env.COOKIE_SECRET, String(Date.now() - 1000));
         const expiredToken = await createSignedToken(
             env.COOKIE_SECRET,

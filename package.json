@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "npx wrangler pages dev public --port 8787",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest --passWithNoTests",

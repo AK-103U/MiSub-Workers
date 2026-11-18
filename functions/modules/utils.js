@@ -146,7 +146,7 @@ export async function conditionalKVPut(env, key, newData, oldData = null) {
 
 /**
  * 获取或生成 Cookie 加密密钥
- * 优先顺序：KV → 环境变量 COOKIE_SECRET → 随机生成（无 KV 时仅内存有效）
+ * 优先使用已持久化的 KV 密钥，其次使用 COOKIE_SECRET；首次使用时可在 KV 中生成密钥。
  * @param {Object} env - 运行时环境对象
  * @returns {Promise<string>} 密钥
  */
@@ -165,37 +165,34 @@ export async function getCookieSecret(env) {
             return runtimeCookieSecret;
         }
 
-        // 3. 生成新密钥并尽力持久化到 KV；若 KV 暂不可用则退化为本次运行临时密钥
+        // Only issue signatures with a key that another request can retrieve.
         const newSecret = crypto.randomUUID();
-        await safeKvPut(kv, 'SYSTEM_COOKIE_SECRET', newSecret);
+        await kv.put('SYSTEM_COOKIE_SECRET', newSecret);
         return newSecret;
     }
 
-    // 无 KV：直接使用环境变量，无则生成临时密钥（重启后失效）
     if (runtimeCookieSecret) return runtimeCookieSecret;
-    return crypto.randomUUID();
+    throw new Error('Configure MISUB_KV or COOKIE_SECRET to enable signing');
 }
 
 /**
  * 获取管理员密码
- * 优先顺序：环境变量 ADMIN_PASSWORD → KV → 默认值 'admin'
+ * 优先使用环境变量，其次使用已有 KV 密码；两者均未配置时关闭后台。
  * @param {Object} env - 运行时环境对象
- * @returns {Promise<string>} 密码
+ * @returns {Promise<string|null>} 未配置时返回 null
  */
 export async function getAdminPassword(env) {
-    const runtimeAdminPassword = getRuntimeEnvValue(env, 'ADMIN_PASSWORD');
-    if (runtimeAdminPassword) {
-        return runtimeAdminPassword.trim();
-    }
+    const value = getRuntimeEnvValue(env, 'ADMIN_PASSWORD') ?? (await getAdminPasswordFromKv(env));
+    return normalizePassword(value) || null;
+}
 
-    const kv = getKV(env);
-    if (kv) {
-        const kvPassword = await getAdminPasswordFromKv(env);
-        if (kvPassword) return String(kvPassword).trim();
-        return 'admin';
-    }
-
-    return 'admin';
+export function normalizePassword(value) {
+    return String(value ?? '')
+        .replace(/\uFEFF/g, '')
+        .replace(/[\u200B-\u200D]/g, '')
+        .trim()
+        .replace(/^['"]|['"]$/g, '')
+        .trim();
 }
 
 /**
@@ -216,7 +213,7 @@ export async function getAuthDebugInfo(env) {
         hasKvCookieSecret = !!(await safeKvGet(kv, 'SYSTEM_COOKIE_SECRET'));
     }
 
-    let adminPasswordSource = 'default';
+    let adminPasswordSource = 'unconfigured';
     if (runtimeAdminPassword) {
         adminPasswordSource = 'env';
     } else if (hasKvAdminPassword) {
@@ -237,7 +234,7 @@ export async function getAuthDebugInfo(env) {
             source: adminPasswordSource,
             hasRuntime: !!runtimeAdminPassword,
             hasKvValue: hasKvAdminPassword,
-            isDefaultFallback: adminPasswordSource === 'default',
+            isDefaultFallback: false,
         },
         cookieSecret: {
             source: cookieSecretSource,
@@ -518,7 +515,7 @@ export function log(level, message, data = null) {
  * @returns {Promise<string>} 回调令牌
  */
 export async function getCallbackToken(env) {
-    const secret = env.COOKIE_SECRET || 'default-callback-secret';
+    const secret = getRuntimeEnvValue(env, 'COOKIE_SECRET') || (await getCookieSecret(env));
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
     const cryptoKey = await crypto.subtle.importKey(

@@ -77,7 +77,17 @@ It is designed for personal and small-team usage: simple operations, clear clien
 - A Cloudflare account
 - Node.js 20+ for local development
 
-### Deploy to Cloudflare Pages
+### One-click deploy to Cloudflare Workers
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/AK-103U/MiSub-Workers)
+
+1. Click the button, connect your Git account, and choose a repository and Worker name. No manual fork is needed.
+2. Keep the detected build (`npm run build`) and deploy (`npm run deploy`) commands. You can deploy before setting any secrets.
+3. Open `/login` on the Worker URL. To enable admin access, open the Worker's **Settings → Variables and Secrets**, add a strong `ADMIN_PASSWORD` as a **Secret**, deploy the change, then refresh the login page. Cloudflare serves the frontend and API from the same Worker and provisions the `MISUB_KV` namespace. D1 is optional.
+
+The button creates a new deployment; it does not migrate existing Pages data. To use an existing namespace, set its `id` on the `MISUB_KV` binding in `wrangler.jsonc` before deploying via the CLI. For an optional native schedule, add `triggers.crons` to that file; no schedule is enabled by default.
+
+### Deploy to Cloudflare Pages (alternative)
 
 1. Fork this repository.
 2. Open Cloudflare Dashboard.
@@ -94,7 +104,7 @@ It is designed for personal and small-team usage: simple operations, clear clien
 
 ### Required KV binding
 
-Create or select a Cloudflare KV namespace, then bind it in Pages settings:
+Create or select a Cloudflare KV namespace for **Pages**, then bind it in Pages settings (the Workers button handles this automatically):
 
 - Variable name: `MISUB_KV`
 - Binding type: KV namespace
@@ -108,7 +118,7 @@ wrangler d1 create misub
 wrangler d1 execute misub --file=schema.sql --remote
 ```
 
-Bind the database in Pages settings:
+Bind the database in Pages settings or add it under `d1_databases` in the Worker's `wrangler.jsonc`:
 
 - Variable name: `MISUB_DB`
 - Binding type: D1 database
@@ -117,8 +127,8 @@ If schema initialization fails in the CLI, run the latest `schema.sql` manually 
 
 ### Recommended environment variables
 
-- `ADMIN_PASSWORD`: admin login password. If unset, the default password is `admin`.
-- `COOKIE_SECRET`: stable session signing secret.
+- `ADMIN_PASSWORD`: admin login password. An existing KV password still works. Without either, admin access stays disabled; there is no default login.
+- `COOKIE_SECRET`: optional signing secret. With healthy KV, an installation-specific key is generated and stored automatically when needed.
 - `CORS_ORIGINS`: allowed browser origins for API requests.
 - `CRON_SECRET`: secret used by external cron triggers.
 - `MISUB_PUBLIC_URL`: public site URL used to generate subscription conversion callback URLs.
@@ -132,6 +142,8 @@ Never commit real tokens, cookies, UUID/private keys, webhook secrets, bot token
 npm install
 npm run dev
 ```
+
+For local Worker testing, run `npm run build` then `npm run dev:worker`. Local secrets belong in `.dev.vars` (see `.dev.vars.sample`); Wrangler uses local KV by default.
 
 For local Pages Functions testing:
 
